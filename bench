@@ -1,6 +1,6 @@
 #!/bin/bash
 
-
+set +x
 # 解析命令行选项
 while getopts ":e:a:k:i:j:" opt; do
   case ${opt} in
@@ -27,6 +27,15 @@ while getopts ":e:a:k:i:j:" opt; do
   esac
 done
 
+# install jq
+function check_jq() {
+  if ! command -v jq &> /dev/null; then
+    wget https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+    chmod a+x jq-linux64 && mv jq-linux64 /usr/bin/jq
+  fi
+}
+
+check_jq
 # Define the 'clear' function to disable the 'clear' command
 clear () {
     echo ""
@@ -44,15 +53,12 @@ true > yabs.json
 # set -x
 # 定义要执行的脚本名称和对应的命令
 declare -A SCRIPT_NAMES_CMD=(
-  # ["script1.sh"]="bash ./script1.sh"
-  # ["yabs.sh"]="curl -sL yabs.sh | bash"
-  # ["yabs.sh"]="curl -sL yabs.sh | bash -s -- -w yabs.json -5"
-  ["besttrace.sh"]="wget -qO- git.io/besttrace | bash"
-  # ["superspeed.sh"]="bash <(curl -Lso- https://git.io/superspeed_uxh)"
+  ["yabs.sh"]="curl -sL yabs.sh | bash -s -- -w yabs.json -5"
   ["superspeed.sh"]="echo  -e "1"  | bash <(curl -Lso- https://git.io/superspeed_uxh)"
-  # ["backtrace.sh"]="curl https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh -sSf | sh"
-  # ["openai-checker.sh"]="bash <(curl -Ls https://cdn.jsdelivr.net/gh/missuo/OpenAI-Checker/openai.sh)"
-  # ["media-unlock.sh"]="bash <(curl -L -s check.unlock.media)"
+  ["openai-checker.sh"]="bash <(curl -Ls https://cdn.jsdelivr.net/gh/missuo/OpenAI-Checker/openai.sh)"
+  ["media-unlock.sh"]="echo  -e "1"  |  bash <(curl -L -s check.unlock.media)"
+  ["backtrace.sh"]="curl https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh -sSf | sh"
+  ["besttrace.sh"]="wget -qO- git.io/besttrace | bash"
 )
 
 # 构建要发送到 CouchDB 的 JSON 对象
@@ -89,12 +95,12 @@ source ~/.bashrc
 YABS=$(cat yabs.json)
 MERGED_JSON=$(echo $YABS $JSON | jq -s add)
 # 打印要发送到 CouchDB 的 JSON 对象
-echo "$MERGED_JSON"
+# echo "$MERGED_JSON"
 
 # 将 JSON 对象发送到 CouchDB
 # curl -H "Content-Type: application/json" -X POST -d "$MERGED_JSON" "$COUCHDB_URL"
 
-# 
+set -x
 curl --request POST \
   "https://$endpoint/app/$app_id/endpoint/data/v1/action/updateOne" \
   --header 'Content-Type: application/json' \
@@ -103,8 +109,8 @@ curl --request POST \
       \"dataSource\": \"Cluster0\",
       \"database\": \"vpslog\",
       \"collection\": \"servers\",
-      \"filter\": { \"_id\": { \"$oid\": \"$id\" } },
+      \"filter\": { \"_id\": { \"\$oid\": \"$id\" } },
       \"update\": {
-          \"$set\": $result_json
+          \"\$set\": $MERGED_JSON
       }
   }"
