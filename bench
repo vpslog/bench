@@ -1,6 +1,5 @@
 #!/bin/bash
 
-set +x
 # 解析命令行选项
 while getopts ":e:a:k:i:j:" opt; do
   case ${opt} in
@@ -100,7 +99,6 @@ MERGED_JSON=$(echo $YABS $JSON | jq -s add)
 # 将 JSON 对象发送到 CouchDB
 # curl -H "Content-Type: application/json" -X POST -d "$MERGED_JSON" "$COUCHDB_URL"
 
-set -x
 curl --request POST \
   "https://$endpoint/app/$app_id/endpoint/data/v1/action/updateOne" \
   --header 'Content-Type: application/json' \
