@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 解析命令行选项
+set +x
 while getopts ":e:a:k:i:j:" opt; do
   case ${opt} in
     e )
@@ -26,31 +26,23 @@ while getopts ":e:a:k:i:j:" opt; do
   esac
 done
 
-# install jq
 function check_jq() {
   if ! command -v jq &> /dev/null; then
-    wget https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+    curl -L https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 -o jq-linux64
     chmod a+x jq-linux64 && mv jq-linux64 /usr/bin/jq
   fi
 }
 
 check_jq
-# Define the 'clear' function to disable the 'clear' command
 clear () {
     echo ""
 }
 
-# Export the 'clear' function for use in subshells
 export -f clear
-
-# Reload the Shell configuration file to apply changes
 source ~/.bashrc
-
 
 LOG_FILE="multi.log"
 true > yabs.json
-# set -x
-# 定义要执行的脚本名称和对应的命令
 declare -A SCRIPT_NAMES_CMD=(
   ["yabs.sh"]="curl -sL yabs.sh | bash -s -- -w yabs.json -5"
   ["superspeed.sh"]="echo  -e "1"  | bash <(curl -Lso- https://git.io/superspeed_uxh)"
@@ -60,45 +52,24 @@ declare -A SCRIPT_NAMES_CMD=(
   ["besttrace.sh"]="wget -qO- git.io/besttrace | bash"
 )
 
-# 构建要发送到 CouchDB 的 JSON 对象
 JSON='{ "raw": ['
-# 执行所有脚本，并将输出保存到变量中
-# set -x
 for SCRIPT_NAME in "${!SCRIPT_NAMES_CMD[@]}"
 do
-  # 清空 RESULT 变量
-  # RESULT=""
-  # 去掉颜色字符
-  # 直接这样不能解析 | 符号,执行的是  + wget -qO- git.io/besttrace '|' bash
-  # RESULT+=$(${SCRIPT_NAMES_CMD["$SCRIPT_NAME"]} | sed -r 's/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g')
-  # 改成 eval,可以执行,但是无法打印到屏幕
-  # RESULT=$(eval "${SCRIPT_NAMES_CMD["$SCRIPT_NAME"]}" |  tee  | sed -r 's/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g')
-  # 单用 tee 仍然不行?注意 tee>sed 和 tee>(sed) 的区别，颜色转移？
-  # eval "${SCRIPT_NAMES_CMD["$SCRIPT_NAME"]}" 2>&1 |  tee >(sed -r 's/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g') > $LOG_FILE
   eval "${SCRIPT_NAMES_CMD["$SCRIPT_NAME"]}" 2>&1 |  tee >(sed -r 's/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g' > $LOG_FILE) 
   RESULT=$(<$LOG_FILE)
   ESCAPED_RESULT=$(printf '%s\n' "$RESULT" | jq -R -s @json)
-  # eval "${SCRIPT_NAMES_CMD["$SCRIPT_NAME"]}" > "$LOG_FILE"
-  # RESULT=$(cat "$LOG_FILE" | sed -r 's/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g')
   JSON+='{"name":"'$SCRIPT_NAME'", "result":'$ESCAPED_RESULT'},'
 done
-JSON=${JSON%?} # 去掉最后一个逗号
+JSON=${JSON%?} # Remove the last comma
 JSON+=']}'
 
-# Restore the original 'clear' command
 unset -f clear
-
-# Reload the Shell configuration file again to restore the original 'clear' command
 source ~/.bashrc
 
 YABS=$(cat yabs.json)
-MERGED_JSON=$(echo $YABS $JSON | jq -s add)
-# 打印要发送到 CouchDB 的 JSON 对象
-# echo "$MERGED_JSON"
+MERGED_JSON=$(echo $JSON | jq --argjson arg1 "$YABS" '.address = $arg1')
 
-# 将 JSON 对象发送到 CouchDB
-# curl -H "Content-Type: application/json" -X POST -d "$MERGED_JSON" "$COUCHDB_URL"
-
+set -x
 curl --request POST \
   "https://$endpoint/app/$app_id/endpoint/data/v1/action/updateOne" \
   --header 'Content-Type: application/json' \
