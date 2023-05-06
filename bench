@@ -67,7 +67,7 @@ unset -f clear
 source ~/.bashrc
 
 YABS=$(cat yabs.json)
-MERGED_JSON=$(echo $JSON | jq --argjson arg1 "$YABS" '.address = $arg1')
+MERGED_JSON=$(echo $JSON | jq --argjson arg1 "$YABS" '.YABS = $arg1 | {bench: .}')
 
 set -x
 curl --request POST \
